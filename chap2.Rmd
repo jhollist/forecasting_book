@@ -1,0 +1,108 @@
+```{r}
+library(fpp3)
+```
+
+# 2.1 The tsibble object
+
+Got to set up the tsibble (a time series enabled tibble) and specify which column holds the temporal bit with the `index` option.  
+
+```{r}
+y <- tsibble(
+  Year = 2015:2019,
+  Observation = c(123,39,78,52,110),
+  index = Year
+)
+```
+
+If not just year, need to do a little maintenance on the index
+
+
+```{r}
+z <- tibble(Month = c("2019 Jan", "2019 Feb", "2019 Mar","2019 Apr","2019 May"),
+            Observation = c(50,23,34,30,25))
+
+z %>% 
+  mutate(Month = yearmonth(Month)) %>%
+  as_tsibble(index = Month)
+```
+
+Options for mutating the index are:
+
+- Annual - just need start:end
+- Quarter - `tsibble::yearquarter()`
+- Monthly - `tsibble::yearmonth()`
+- Weekly - `tsibble::yearweek()`
+- Daily - `lubridate::ymd()`
+- HMS - `lubridate::ymd_hms()`
+
+Multiple time series can be stored in a single tsibble
+
+An example:
+
+```{r}
+olympic_running
+```
+
+And `tsibble` objects are perfectly happy working with dplyr, so munge away!
+
+```{r}
+PBS %>%
+  filter(ATC2 == "A10") %>%
+  select(Month, Concession, Type, Cost) %>%
+  summarise(TotalC = sum(Cost)) %>%
+  mutate(Cost = TotalC / 1e6) -> a10
+```
+
+Keys are another concept to be aware of with `tsibble`.  Essentially breaks the time series into other individual time series.
+
+```{r}
+prison <- readr::read_csv("https://OTexts.com/fpp3/extrafiles/prison_population.csv")
+
+prison <- prison %>%
+  mutate(Quarter = yearquarter(Date)) %>%
+  select(-Date) %>%
+  as_tsibble(key = c(State, Gender, Legal, Indigenous),
+             index = Quarter)
+```
+
+Lastly, is the seasonal period.  The repeat interval for a given "season" or the number of observations in a year (e.g. monthly has 12, then it repeats).  Can have more that one seasonal pattern for more than weekly observations. Can specify more complex ones with `lubridate::period`.
+
+# 2.2. Time plots
+
+First ts plot!
+
+```{r}
+melsyd_economy <- ansett %>%
+  filter(Airports == "MEL-SYD", Class == "Economy") %>%
+  mutate(Passengers = Passengers/1000)
+x <- autoplot(melsyd_economy, Passengers) +
+  labs(title = "Ansett airlines economy class",
+       subtitle = "Melbourne-Sydney",
+       y = "Passengers ('000)")
+x
+```
+
+Another plot
+
+```{r}
+autoplot(a10, Cost) +
+  labs(y = "$ (millions)",
+       title = "Australian antidiabetic drug sales")
+```
+
+# 2.4 Seasonal Plots
+
+```{r}
+a10 %>%
+  gg_season(Cost, labels = "both") +
+  labs(y = "$ (millions)",
+       title = "Seasonal plot: Antidiabetic drug sales")
+```
+
+```{r}
+vic_elec %>% 
+  filter(year(Time) == 2012) %>%
+  gg_season(Demand, period = "year") +
+  theme(legend.position = "none") +
+  labs(y="MWh", title="Electricity demand: Victoria")
+```
